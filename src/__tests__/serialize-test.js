@@ -3,6 +3,10 @@ import {
   decodeDate,
   encodeBoolean,
   decodeBoolean,
+  encodeNumber,
+  decodeNumber,
+  encodeString,
+  decodeString,
   encodeJson,
   decodeJson,
   encodeArray,
@@ -16,6 +20,11 @@ import {
   decodeNumericObject,
   decodeNumericArray,
 } from '../serialize';
+import configureUrlQuery from '../configureUrlQuery';
+
+// Resets the global configuration to prevent side-effects in other tests
+const resetConfiguration = () =>
+  configureUrlQuery({ entrySeparator: '_', keyValSeparator: '-' });
 
 describe('utils', () => {
   describe('serialization', () => {
@@ -82,6 +91,43 @@ describe('utils', () => {
       });
     });
 
+    describe('encodeNumber', () => {
+      it('produces the correct value', () => {
+        expect(encodeNumber(123)).toBe('123');
+        expect(encodeNumber(-32.12)).toBe('-32.12');
+        expect(encodeNumber()).not.toBeDefined();
+      });
+    });
+
+    describe('decodeNumber', () => {
+      it('produces the correct value', () => {
+        expect(decodeNumber('99')).toBe(99);
+        expect(decodeNumber('-58.21')).toBe(-58.21);
+        expect(decodeNumber()).not.toBeDefined();
+        expect(decodeNumber('')).not.toBeDefined();
+      });
+
+      it('handles malformed input', () => {
+        expect(decodeNumber('foo')).not.toBeDefined();
+      });
+    });
+
+    describe('encodeString', () => {
+      it('produces the correct value', () => {
+        expect(encodeString('foo')).toBe('foo');
+        expect(encodeString()).not.toBeDefined();
+      });
+    });
+
+    describe('decodeString', () => {
+      it('produces the correct value', () => {
+        expect(decodeString('bar')).toBe('bar');
+        expect(decodeString('')).toBe('');
+        expect(decodeString()).not.toBeDefined();
+        expect(decodeString(null)).not.toBeDefined();
+      });
+    });
+
     describe('encodeJson', () => {
       it('produces the correct value', () => {
         const input = { test: '123', foo: [1, 2, 3] };
@@ -116,6 +162,17 @@ describe('utils', () => {
         expect(encodeArray(input)).toBe('a_b_c');
         expect(encodeArray()).not.toBeDefined();
       });
+
+      it('produces the correct value with a different global separator', () => {
+        const input = ['a', 'b', 'c'];
+        configureUrlQuery({ entrySeparator: '+' });
+
+        expect(encodeArray(input)).toBe('a+b+c');
+        expect(encodeArray()).not.toBeDefined();
+
+        // Revert change so it does not effect other tests
+        resetConfiguration();
+      });
     });
 
     describe('decodeArray', () => {
@@ -141,6 +198,19 @@ describe('utils', () => {
         expect(encodeObject()).not.toBeDefined();
         expect(encodeObject({})).not.toBeDefined();
       });
+
+      it('produces the correct value with different global separators', () => {
+        configureUrlQuery({ entrySeparator: ',', keyValSeparator: ':' });
+        const input = { test: 'bar', foo: 94 };
+        const expectedOutput = 'test:bar,foo:94';
+
+        expect(encodeObject(input)).toBe(expectedOutput);
+        expect(encodeObject()).not.toBeDefined();
+        expect(encodeObject({})).not.toBeDefined();
+
+        // Revert change so it does not effect other tests
+        resetConfiguration();
+      });
     });
 
     describe('decodeObject', () => {
@@ -158,8 +228,12 @@ describe('utils', () => {
 
       it('handles malformed input', () => {
         expect(decodeObject('foo-bar-jim-grill')).toEqual({ foo: 'bar' });
-        expect(decodeObject('foo_bar_jim_grill'))
-          .toEqual({ foo: undefined, bar: undefined, jim: undefined, grill: undefined });
+        expect(decodeObject('foo_bar_jim_grill')).toEqual({
+          foo: undefined,
+          bar: undefined,
+          jim: undefined,
+          grill: undefined,
+        });
       });
     });
 
@@ -182,7 +256,11 @@ describe('utils', () => {
       });
 
       it('handles empty values', () => {
-        expect(decodeNumericArray('__')).toEqual([undefined, undefined, undefined]);
+        expect(decodeNumericArray('__')).toEqual([
+          undefined,
+          undefined,
+          undefined,
+        ]);
       });
     });
 
@@ -211,8 +289,12 @@ describe('utils', () => {
 
       it('handles malformed input', () => {
         expect(decodeNumericObject('foo-bar-jim-grill')).toEqual({ foo: NaN });
-        expect(decodeNumericObject('foo_bar_jim_grill'))
-          .toEqual({ foo: undefined, bar: undefined, jim: undefined, grill: undefined });
+        expect(decodeNumericObject('foo_bar_jim_grill')).toEqual({
+          foo: undefined,
+          bar: undefined,
+          jim: undefined,
+          grill: undefined,
+        });
       });
     });
 
@@ -224,7 +306,9 @@ describe('utils', () => {
 
       it('decodes using default value', () => {
         const input = undefined;
-        expect(decode('number', input, '94')).toBe('94');
+        expect(decode('number', input, 94)).toBe(94);
+        expect(decode('array', 'foo_bar', [])).toEqual(['foo', 'bar']);
+        expect(decode('object', 'a-b_c-d', {})).toEqual({ a: 'b', c: 'd' });
       });
 
       it('decodes using custom function', () => {
@@ -240,6 +324,11 @@ describe('utils', () => {
       it('handles no decoder found', () => {
         const input = '94';
         expect(decode('fancy', input)).toBe(input);
+      });
+
+      it('decodes an invalid number as undefined', () => {
+        const input = 'notanumber';
+        expect(decode('number', input, 94)).not.toBeDefined();
       });
     });
 
@@ -328,22 +417,30 @@ describe('utils', () => {
 
       it('encode(decode(numericObject)) === numericObject', () => {
         const input = 'foo-555_baz-999';
-        expect(encode('numericObject', decode('numericObject', input))).toBe(input);
+        expect(encode('numericObject', decode('numericObject', input))).toBe(
+          input
+        );
       });
 
       it('decode(encode(numericObject)) === numericObject', () => {
         const input = { foo: 3, baz: 777 };
-        expect(decode('numericObject', encode('numericObject', input))).toEqual(input);
+        expect(decode('numericObject', encode('numericObject', input))).toEqual(
+          input
+        );
       });
 
       it('encode(decode(numericArray)) === numericArray', () => {
         const input = '1_2_3';
-        expect(encode('numericArray', decode('numericArray', input))).toBe(input);
+        expect(encode('numericArray', decode('numericArray', input))).toBe(
+          input
+        );
       });
 
       it('decode(encode(numericArray)) === numericArray', () => {
         const input = [5, 6, 7];
-        expect(decode('numericArray', encode('numericArray', input))).toEqual(input);
+        expect(decode('numericArray', encode('numericArray', input))).toEqual(
+          input
+        );
       });
     });
   });

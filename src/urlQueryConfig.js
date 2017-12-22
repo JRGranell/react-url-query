@@ -10,17 +10,22 @@ function createUrlQueryConfig() {
     addRouterParams: true,
 
     // function to specify change handler name (onChange<PropName>)
-    changeHandlerName: propName => `onChange${propName[0].toUpperCase()}${propName.substring(1)}`,
+    changeHandlerName: propName =>
+      `onChange${propName[0].toUpperCase()}${propName.substring(1)}`,
 
     // use this history if no history is specified
     history: {
       push() {
         // eslint-disable-next-line
-        console.error('No history provided to react-url-query. Please provide one via configureUrlQuery.');
+        console.error(
+          'No history provided to react-url-query. Please provide one via configureUrlQuery.'
+        );
       },
       replace() {
         // eslint-disable-next-line
-        console.error('No history provided to react-url-query. Please provide one via configureUrlQuery.');
+        console.error(
+          'No history provided to react-url-query. Please provide one via configureUrlQuery.'
+        );
       },
     },
 
@@ -33,6 +38,16 @@ function createUrlQueryConfig() {
 
       return undefined;
     },
+    /**
+     * The separator between entries
+     * @default {String} "_"
+     */
+    entrySeparator: '_',
+    /**
+     * The separator between keys and values
+     * @default {String} "-"
+     */
+    keyValSeparator: '-',
   };
 }
 
